@@ -1,6 +1,6 @@
 ---
 title: "Assignment 6"
-author: "Alex Reed"
+author: "Erica Bishop, Michelle Lam, Alex Reed"
 date: "`r Sys.Date()`"
 output:
   pdf_document: default
@@ -22,7 +22,7 @@ source("dCgrowth.R")
 dCgrowth
 ```
 
-# 2. Run model
+# 2. Run model for 300 years
 ```{r}
 simtimes = seq(from=1, to=300)
 parms = list(Ct = 50, r=0.01, K=250, g = 2)
@@ -32,23 +32,24 @@ result = ode(y=Cinitial, times=simtimes, func=dCgrowth, parms=parms)
 colnames(result)=c("time","C")
 ```
 
-# 3. Graph the results.
+# 3. Graph the results
 ```{r}
 # turn it into a data frame
 result = as.data.frame(result)
 ggplot(result, aes(time, C)) +
   geom_point(col = "darkgreen") +
   labs(x = "Time (years)",
-       y = "Size of the forest (kg/C)",
+       y = "Size of the forest (kgC)",
        title = "Forest growth over 300 years") +
   theme_minimal()
 ```
 
-#4
+# 4. Run a sobol global (vary all parameters at the same time) sensitivity analysis that explores how the estimated maximum forest size (e.g maximum of 300 years), varies with these parameters
 ```{r}
-# want to learn about sensitivity to growth rate (r) and carrying capacity 
+# want to learn about sensitivity pre-canopy closure growth rate (r), post-canopy closure growth rate (g), canopy closure threshold (Ct), and carrying capacity (K)
 # set the number of parameters
 np=2000
+# 10% standard deviation
 pct_var = 0.1
 
 K = rnorm(mean=250, sd=250*pct_var, n=np)
@@ -68,13 +69,12 @@ X2 = cbind.data.frame(r=r, K=K, g=g, Ct=Ct)
 X1 = X1 %>% map_df(pmax, 0.0)
 X2 = X2 %>% map_df(pmax, 0.0)
 
-sens_P = sobolSalt(model = NULL,X1, X2, nboot = 300)
+sens_C = sobolSalt(model = NULL,X1, X2, nboot = 300)
 
 # lets add names 
-colnames(sens_P$X) = c("r","K","g", "Ct")
+colnames(sens_C$X) = c("r","K","g", "Ct")
 
-#maxC = max(as.data.frame(result$C))
-
+# turn computing max forest size into function
 p_wrapper = function(r,K, g, Ct, Cinitial, simtimes, func) {
     parms = list(r=r, K=K, g=g, Ct=Ct)
     result = ode(y=Cinitial, times=simtimes, func=func, parms=parms) 
@@ -84,7 +84,7 @@ p_wrapper = function(r,K, g, Ct, Cinitial, simtimes, func) {
   return(metrics)
 }
 
-allresults = as.data.frame(sens_P$X) %>% 
+allresults = as.data.frame(sens_C$X) %>% 
   pmap(p_wrapper, Cinitial=Cinitial, simtimes=simtimes, func=dCgrowth)
 
 allres <- do.call(rbind, allresults) # "matrix" "array" 
@@ -93,7 +93,7 @@ allres <- as.data.frame(allres) %>%
   rename(maxC = V1)
 ```
 
-#5
+# 5. Graph the results of the sensitivity analysis as a box plot of maximum forest size and record the two Sobol indices (S and T).
 ```{r}
 # create boxplot
 ggplot(allres, aes(maxC))+
@@ -101,23 +101,24 @@ ggplot(allres, aes(maxC))+
   coord_flip() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank()) +
-  labs(x = "Maximum size of the forest (kg/C)") +
+  labs(x = "Maximum size of the forest (kgC)") +
   theme_minimal()
 ```
 
-#6
 ```{r}
-sens_P_maxC = sensitivity::tell(sens_P,allres$maxC)
+sens_C_maxC = sensitivity::tell(sens_C,allres$maxC)
 
 # first-order indices 
-rownames(sens_P_maxC$S) = c("r","K","g", "Ct")
-print(sens_P_maxC$S)
+rownames(sens_C_maxC$S) = c("r","K","g", "Ct")
+print(sens_C_maxC$S)
 
 # total sensitivity 
-rownames(sens_P_maxC$T) = c("r","K","g", "Ct")
-print(sens_P_maxC$T)
+rownames(sens_C_maxC$T) = c("r","K","g", "Ct")
+print(sens_C_maxC$T)
 ```
 
-**Pre-canopy closure growth rate appears to be the most sensitive. However, pre-canopy closure growth rate, post-canopy growth rate, and carrying capacity have similar sensitivities. Canopy closure threshold appears to be the least sensitive with confidence interval including zero. Climate change would have an effect on the parameters. For example, increase in drought could lead to a decrease in growth rate or warming temperatures that increase the growing season could increase the growth rate. In addition, the threshold at which the canopy closes may change due to changes in growing conditions, which would effect the inflection point at which the growth rate changes.** 
+# 6. In 2-3 sentences, discuss what the results of your simulation might mean. (For example think about how what parameters climate change might influence).
+
+**Pre-canopy closure growth rate (r) and carrying capacity (K) seem to be the most sensitive and canopy closure threshold (Ct) appears to be the least sensitive. Climate change could have an effect on the parameters. For example, increase in drought could lead to a decrease in growth rate or warming temperatures that increase the growing season could increase the growth rate. In addition, the threshold at which the canopy closes may change due to changes in growing conditions, which would effect the inflection point at which the growth rate changes.** 
 
 
